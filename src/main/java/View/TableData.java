@@ -12,15 +12,25 @@ public class TableData {
     private String startTime;
     private String endTime;
     private String status;
+    private int id;
 
-    public TableData(String title, String startTime, String endTime,
+    public TableData(int id, String title, String startTime, String endTime,
                      String status){
 
+        this.id = id;
         this.title = title;
         this.startTime = startTime;
         this.endTime = endTime;
         this.status = status;
 
+    }
+
+    /**
+     *
+     * @return id of program
+     */
+    public int getId() {
+        return id;
     }
 
     /**

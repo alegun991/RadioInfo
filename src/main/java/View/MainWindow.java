@@ -231,6 +231,11 @@ public class MainWindow extends JFrame {
         return jTable;
     }
 
+    public ProgramTable getTableModel(){
+
+        return tableModel;
+    }
+
     /**
      * This method is used to show a dialog window when a user presses on
      * a specific program. Shows image and description for that program.

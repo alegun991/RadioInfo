@@ -7,6 +7,7 @@ import View.MainWindow;
 import View.TableData;
 
 import javax.swing.*;
+import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseAdapter;
@@ -30,7 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Controller {
 
-    private Model model;
+    private final Model model;
     private MainWindow view;
     private ChannelComboBox comboBox;
     private CopyOnWriteArrayList<Program> programs;
@@ -39,7 +40,6 @@ public class Controller {
     private String lastUpdated;
     private ImageIcon img;
     private AtomicBoolean isUpdating = new AtomicBoolean(false);
-
     /**
      * Constructor
      * Initiates the GUI, executes the SwingWorker which retrieves channels and
@@ -105,6 +105,9 @@ public class Controller {
 
         if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
 
+            if(SwingUtilities.isEventDispatchThread()){
+                System.out.println("EDT!!");
+            }
             setCurrentChannel(itemEvent.getItem().toString());
             scheduledUpdate();
 
@@ -114,7 +117,7 @@ public class Controller {
 
     /**
      * This method is responsible for handling an event when an item in the
-     * tableau is clicked. Gets both the tile and start time from the tableau
+     * tableau is clicked. Gets both the id and start time from the tableau
      * and checks for those values in the program list. When the program is
      * found it fetches the image and description for that program send it to
      * the view.
@@ -125,18 +128,18 @@ public class Controller {
             @Override
             public void mousePressed(MouseEvent e) {
 
-                String title = view.getTable().getModel().getValueAt(
-                        view.getTable().getSelectedRow(), 0).toString();
+                int rowId = view.getTableModel().getRowId(
+                        view.getTable().getSelectedRow());
 
                 String startTime = view.getTable().getModel().getValueAt(
                         view.getTable().getSelectedRow(), 1).toString();
 
                 programs.forEach(p -> {
+
                     LocalDateTime ldt = p.getStartTime();
                     String formatTime = timeFormatter(ldt);
 
-                    if (p.getTitle().equals(title) &&
-                            formatTime.equals(startTime)) {
+                    if (p.getId() == rowId && formatTime.equals(startTime)) {
 
                         ImageIcon imageIcon = p.getImage();
                         String description = p.getDescription();
@@ -145,8 +148,6 @@ public class Controller {
 
                     }
                 });
-
-
             }
         });
 
@@ -165,8 +166,8 @@ public class Controller {
         timer.purge();
 
         timer = new Timer();
-        timer.scheduleAtFixedRate(new UpdateTask(), 2000,
-                2000);
+        timer.scheduleAtFixedRate(new UpdateTask(), 3600000,
+                3600000);
 
 
     }
@@ -233,6 +234,7 @@ public class Controller {
 
             for (Program p : programs) {
 
+                var id = p.getId();
                 var title = p.getTitle();
                 var startTime = p.getStartTime();
                 var formatTime1 = timeFormatter(startTime);
@@ -252,8 +254,7 @@ public class Controller {
                     status = "Upcoming";
                 }
 
-                //publish TableData object for each program
-                publish(new TableData(title, formatTime1,
+                publish(new TableData(id, title, formatTime1,
                         formatTime2, status));
 
 
@@ -263,13 +264,12 @@ public class Controller {
         }
 
         /**
-         * Evoked on EDT.
+         * Evoked on EDT. Updates the table model.
          *
          * @param chunks list of table data
          */
         @Override
         protected void process(List<TableData> chunks) {
-
 
             view.updateTable(chunks);
         }
@@ -277,19 +277,17 @@ public class Controller {
         @Override
         protected void done() {
 
-
-            view.setChannelImage(getImg());
             lastUpdate(LocalDateTime.now());
+            view.setChannelImage(getImg());
             view.setLastUpdated(lastUpdated);
-
             isUpdating.set(false);
 
         }
     }
 
     /**
-     * Responsible for executing a scheduled update. Its run method will be
-     * called once
+     * Responsible for executing a scheduled update. will run 1 hour after
+     * a new channel has been selected
      */
     class UpdateTask extends TimerTask {
 
@@ -327,7 +325,7 @@ public class Controller {
      * @param ldt local date time
      * @return formatted String of pattern yyyy-MM-dd HH:mm:ss
      */
-    private synchronized String timeFormatter(LocalDateTime ldt) {
+    private String timeFormatter(LocalDateTime ldt) {
 
         DateTimeFormatter formatter =
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -340,7 +338,7 @@ public class Controller {
      *
      * @param ldt local date time of last update
      */
-    private synchronized void lastUpdate(LocalDateTime ldt) {
+    private void lastUpdate(LocalDateTime ldt) {
 
         lastUpdated = timeFormatter(ldt);
     }

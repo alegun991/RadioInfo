@@ -125,4 +125,15 @@ public class ProgramTable extends AbstractTableModel {
         tableData.remove(rowIndex);
         this.fireTableRowsDeleted(tableData.size(), tableData.size());
     }
+
+    /**
+     *
+     * @param rowIndex row index
+     * @return the id for a specific row in the table
+     */
+    public int getRowId(int rowIndex){
+
+        return tableData.get(rowIndex).getId();
+    }
+
 }

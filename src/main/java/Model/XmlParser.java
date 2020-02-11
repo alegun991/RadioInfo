@@ -98,7 +98,8 @@ public class XmlParser {
             Element root = doc.getDocumentElement();
 
 
-            NodeList episodeList = root.getElementsByTagName("scheduledepisode");
+            NodeList episodeList =
+                    root.getElementsByTagName("scheduledepisode");
 
             for (int i = 0; i < episodeList.getLength(); i++) {
 
@@ -125,8 +126,8 @@ public class XmlParser {
                         "endtimeutc").item(0);
 
                 if (elem1 != null){
-                    id = Integer.parseInt(elem1.getAttribute("id"));
 
+                    id = Integer.parseInt(elem1.getAttribute("id"));
                 }
 
                 if (elem2 != null) {
