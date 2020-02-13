@@ -132,7 +132,8 @@ public class MainWindow extends JFrame {
      */
     public void updateTable(List<TableData> tableData) {
 
-        clearTable();
+        clearModel();
+
         for (TableData td : tableData){
 
             tableModel.addTableData(td);
@@ -142,18 +143,11 @@ public class MainWindow extends JFrame {
         pack();
     }
 
-    /**
-     * Iterates through each row in the model and removes them.
-     */
-    private void clearTable(){
+    public void clearModel(){
 
-        var rows = tableModel.getRowCount();
-
-        for (int i = rows - 1; i >= 0; i--){
-
-            tableModel.removeRow(i);
-        }
+        tableModel.clearData();
     }
+
 
     /**
      * Adds an ActionListener to the refresh button.

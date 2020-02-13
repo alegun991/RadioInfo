@@ -58,11 +58,13 @@ public class Channel {
 
         try {
             if(imageUrl != null) {
+
                 URL url = new URL(imageUrl);
                 BufferedImage image = ImageIO.read(url);
                 imageIcon = new ImageIcon(image);
 
             }
+
 
         } catch (IOException e) {
             e.printStackTrace();

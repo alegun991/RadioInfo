@@ -4,6 +4,7 @@ import org.xml.sax.SAXException;
 
 import javax.swing.*;
 import javax.xml.parsers.ParserConfigurationException;
+import java.awt.*;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ public class Model {
 
     private ArrayList<Channel> channels;
     private XmlParser xmlParser;
+    private String errorMSg = null;
 
     /**
      * Constructor, initializes the xmlreader and channel list
@@ -22,7 +24,6 @@ public class Model {
     public Model() {
         channels = new ArrayList<>();
         xmlParser = new XmlParser();
-
     }
 
     /**
@@ -33,12 +34,12 @@ public class Model {
         try {
             channels = xmlParser.channelParser();
 
-        } catch (ParserConfigurationException e) {
-            e.printStackTrace();
-        } catch (SAXException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
+        } catch (ParserConfigurationException | IOException | SAXException e) {
+
+            errorMSg = "Radio channels could not be loaded. Caused by: "
+                    + e.getClass().getSimpleName() + "\n" + e.getMessage();
+            System.err.println("Error loading channels " + e.toString());
+
         }
     }
 
@@ -132,11 +133,26 @@ public class Model {
             }
         } catch (SAXException | ParserConfigurationException | IOException e) {
 
-            System.out.println("no information available" + e.toString());
+            errorMSg = "Programs could not be loaded. " +
+                    "Caused by: " + e.getClass().getSimpleName();
+
+            System.err.println("Error loading programs " + e.toString());
+
+
         }
 
         return timeValidPrograms;
     }
 
+    /**
+     * Displays error message if any exceptions occurred.
+     * @param component Parent component.
+     */
+    public void displayErrorMsg(Component component){
 
+        if (errorMSg != null){
+            JOptionPane.showMessageDialog(component, errorMSg, "Alert",
+                    JOptionPane.WARNING_MESSAGE, null);
+        }
+    }
 }

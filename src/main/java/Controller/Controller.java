@@ -7,7 +7,6 @@ import View.MainWindow;
 import View.TableData;
 
 import javax.swing.*;
-import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseAdapter;
@@ -18,7 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -34,12 +32,13 @@ public class Controller {
     private final Model model;
     private MainWindow view;
     private ChannelComboBox comboBox;
-    private CopyOnWriteArrayList<Program> programs;
+    private volatile ArrayList<Program> programs;
     private String currentChannel;
     private Timer timer;
     private String lastUpdated;
-    private ImageIcon img;
     private AtomicBoolean isUpdating = new AtomicBoolean(false);
+    private boolean mouseListenerIsActive = false;
+
     /**
      * Constructor
      * Initiates the GUI, executes the SwingWorker which retrieves channels and
@@ -70,11 +69,15 @@ public class Controller {
     /**
      * Initialises the listeners for swing components in the view.
      */
-    public void initListeners() {
-        view.refreshListener(actionEvent -> scheduledUpdate());
+    private void initListeners() {
         view.aboutListener(actionEvent -> showAboutDialog());
         view.helpListener(actionEvent -> showHelpDialog());
         comboBox.comboBoxListener(this::showProgramData);
+
+    }
+
+    private void initTableListener() {
+        view.refreshListener(actionEvent -> scheduledUpdate());
         addProgramListener();
     }
 
@@ -105,9 +108,6 @@ public class Controller {
 
         if (itemEvent.getStateChange() == ItemEvent.SELECTED) {
 
-            if(SwingUtilities.isEventDispatchThread()){
-                System.out.println("EDT!!");
-            }
             setCurrentChannel(itemEvent.getItem().toString());
             scheduledUpdate();
 
@@ -128,28 +128,52 @@ public class Controller {
             @Override
             public void mousePressed(MouseEvent e) {
 
-                int rowId = view.getTableModel().getRowId(
-                        view.getTable().getSelectedRow());
+                if (mouseListenerIsActive && !isUpdating.get()) {
 
-                String startTime = view.getTable().getModel().getValueAt(
-                        view.getTable().getSelectedRow(), 1).toString();
+                    int rowId = view.getTableModel().getRowId(
+                            view.getTable().getSelectedRow());
 
-                programs.forEach(p -> {
+                    String startTime = view.getTable().getModel().getValueAt(
+                            view.getTable().getSelectedRow(), 1).toString();
 
-                    LocalDateTime ldt = p.getStartTime();
-                    String formatTime = timeFormatter(ldt);
+                    for (Program p : programs) {
+                        LocalDateTime ldt = p.getStartTime();
+                        String formatTime = timeFormatter(ldt);
 
-                    if (p.getId() == rowId && formatTime.equals(startTime)) {
+                        if (p.getId() == rowId && formatTime.equals(startTime)){
 
-                        ImageIcon imageIcon = p.getImage();
-                        String description = p.getDescription();
+                            programImgRetriever(p);
 
-                        view.setOptionDialog(description, imageIcon);
-
+                        }
                     }
-                });
+                }
             }
         });
+
+    }
+
+    private void programImgRetriever(Program p) {
+
+        SwingWorker<ImageIcon, Void> sw = new SwingWorker<>() {
+            @Override
+            protected ImageIcon doInBackground() {
+
+                return p.getImage();
+            }
+
+            @Override
+            protected void done() {
+
+                try {
+                    var img = get();
+                    view.setOptionDialog(p.getDescription(), img);
+
+                } catch (InterruptedException | ExecutionException e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+        sw.execute();
 
     }
 
@@ -180,7 +204,6 @@ public class Controller {
         isUpdating.set(true);
         ProgramWorker pw = new ProgramWorker();
         pw.execute();
-
     }
 
     /**
@@ -203,6 +226,9 @@ public class Controller {
             try {
                 var temp = get();
 
+                //shows message dialog if any error occurred
+                model.displayErrorMsg(view);
+
                 comboBox = new ChannelComboBox(temp);
                 view.addComboBox(comboBox);
                 initListeners();
@@ -218,16 +244,14 @@ public class Controller {
      * inner class, fills table with programs based on the currently selected
      * channel. Retrieves programs
      */
-    class ProgramWorker extends SwingWorker<String, TableData> {
+    class ProgramWorker extends SwingWorker<ImageIcon, TableData> {
 
 
         @Override
-        protected String doInBackground() {
+        protected ImageIcon doInBackground() {
 
-            programs = new CopyOnWriteArrayList<Program>(
+            programs = new ArrayList<Program>(
                     model.getPrograms(getCurrentChannel()));
-
-            setImg(model.getImageForName(getCurrentChannel()));
 
             LocalDateTime ldt = LocalDateTime.now();
             String status = "";
@@ -245,7 +269,7 @@ public class Controller {
 
                     status = "Running";
                 }
-                if (startTime.isBefore(ldt) && endTime.isBefore(ldt)) {
+                if (endTime.isBefore(ldt)) {
 
                     status = "Finished";
                 }
@@ -257,10 +281,9 @@ public class Controller {
                 publish(new TableData(id, title, formatTime1,
                         formatTime2, status));
 
-
             }
 
-            return null;
+            return model.getImageForName(getCurrentChannel());
         }
 
         /**
@@ -276,9 +299,30 @@ public class Controller {
 
         @Override
         protected void done() {
+            try {
+                var img = get();
+
+                //shows message dialog if any error occurred
+                model.displayErrorMsg(view);
+                view.setChannelImage(img);
+
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+
+            //only "activate" mouse listener if any data was received.
+            //If not, "deactivate" listener
+            if (programs.size() == 0 && mouseListenerIsActive) {
+                mouseListenerIsActive = false;
+                view.clearModel();
+
+            }
+            else if (programs.size() > 0 && !mouseListenerIsActive) {
+                initTableListener();
+                mouseListenerIsActive = true;
+            }
 
             lastUpdate(LocalDateTime.now());
-            view.setChannelImage(getImg());
             view.setLastUpdated(lastUpdated);
             isUpdating.set(false);
 
@@ -299,26 +343,7 @@ public class Controller {
                 updateData();
 
             }
-
         }
-    }
-
-    /**
-     * sets the image for a channel
-     *
-     * @param img channel image
-     */
-    private synchronized void setImg(ImageIcon img) {
-
-        this.img = img;
-    }
-
-    /**
-     * @return channel image
-     */
-    private synchronized ImageIcon getImg() {
-
-        return img;
     }
 
     /**

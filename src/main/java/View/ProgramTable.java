@@ -27,6 +27,11 @@ public class ProgramTable extends AbstractTableModel {
 
     }
 
+    @Override
+    public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
+        super.setValueAt(aValue, rowIndex, columnIndex);
+    }
+
     /**
      *
      * @return number of rows.
@@ -117,13 +122,16 @@ public class ProgramTable extends AbstractTableModel {
     }
 
     /**
-     * Removes a row from the table.
-     * @param rowIndex the index of the row
+     * Clears the table data.
      */
-    public void removeRow(int rowIndex) {
+    public void clearData() {
 
-        tableData.remove(rowIndex);
-        this.fireTableRowsDeleted(tableData.size(), tableData.size());
+        int rows = getRowCount();
+        if (rows == 0) {
+            return;
+        }
+        tableData.clear();
+        this.fireTableRowsDeleted(0, rows - 1);
     }
 
     /**
