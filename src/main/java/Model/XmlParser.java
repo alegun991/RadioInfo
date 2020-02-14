@@ -19,7 +19,7 @@ import java.util.ArrayList;
  * corresponding programs to the channels
  */
 
-public class XmlParser {
+class XmlParser {
 
     /**
      * Empty constructor

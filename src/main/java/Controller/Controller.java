@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class Controller {
 
     private final Model model;
-    private MainWindow view;
+    private volatile MainWindow view;
     private ChannelComboBox comboBox;
     private volatile ArrayList<Program> programs;
     private String currentChannel;
@@ -140,7 +140,7 @@ public class Controller {
                         LocalDateTime ldt = p.getStartTime();
                         String formatTime = timeFormatter(ldt);
 
-                        if (p.getId() == rowId && formatTime.equals(startTime)){
+                        if (p.getId() == rowId && formatTime.equals(startTime)) {
 
                             programImgRetriever(p);
 
@@ -154,23 +154,18 @@ public class Controller {
 
     private void programImgRetriever(Program p) {
 
-        SwingWorker<ImageIcon, Void> sw = new SwingWorker<>() {
+        SwingWorker<Void, ImageIcon> sw = new SwingWorker<>() {
             @Override
-            protected ImageIcon doInBackground() {
+            protected Void doInBackground() {
 
-                return p.getImage();
+                publish(p.getImage());
+
+                return null;
             }
 
             @Override
-            protected void done() {
-
-                try {
-                    var img = get();
-                    view.setOptionDialog(p.getDescription(), img);
-
-                } catch (InterruptedException | ExecutionException e) {
-                    e.printStackTrace();
-                }
+            protected void process(List<ImageIcon> chunks) {
+                view.setOptionDialog(p.getDescription(), chunks.get(0));
             }
         };
         sw.execute();
@@ -182,9 +177,11 @@ public class Controller {
      * chosen from combo box. Executes the program worker, cancels the current
      * timer and schedules an update.
      */
-    public synchronized void scheduledUpdate() {
+    public void scheduledUpdate() {
 
-        updateData();
+        if (!isUpdating.get()) {
+            updateData();
+        }
 
         timer.cancel();
         timer.purge();
@@ -200,48 +197,48 @@ public class Controller {
      * Executes worker for updating program tableau
      */
     public void updateData() {
-
         isUpdating.set(true);
         ProgramWorker pw = new ProgramWorker();
         pw.execute();
     }
 
     /**
-     * Inner class, retrieves all radio channels on background thread, once
+     * Nested class, retrieves all radio channels on background thread, once
      * done, fills a combo box with channel names
      */
-    class ChannelWorker extends SwingWorker<ArrayList<String>, Object> {
+    class ChannelWorker extends SwingWorker<Void, String> {
 
         @Override
-        protected ArrayList<String> doInBackground() {
+        protected Void doInBackground() {
             model.loadChannels();
 
-            return model.getChannelNames();
+            var tmp = model.getChannelNames();
+
+            for (String s : tmp) {
+                publish(s);
+            }
+
+            return null;
+
+        }
+
+        @Override
+        protected void process(List<String> chunks) {
+            model.displayErrorMsg(view);
+            comboBox = new ChannelComboBox(chunks);
+            view.addComboBox(comboBox);
 
         }
 
         @Override
         protected void done() {
+            initListeners();
 
-            try {
-                var temp = get();
-
-                //shows message dialog if any error occurred
-                model.displayErrorMsg(view);
-
-                comboBox = new ChannelComboBox(temp);
-                view.addComboBox(comboBox);
-                initListeners();
-
-
-            } catch (InterruptedException | ExecutionException e) {
-                e.printStackTrace();
-            }
         }
     }
 
     /**
-     * inner class, fills table with programs based on the currently selected
+     * Nested class, fills table with programs based on the currently selected
      * channel. Retrieves programs
      */
     class ProgramWorker extends SwingWorker<ImageIcon, TableData> {
@@ -299,11 +296,12 @@ public class Controller {
 
         @Override
         protected void done() {
+
+            model.displayErrorMsg(view);
             try {
                 var img = get();
 
                 //shows message dialog if any error occurred
-                model.displayErrorMsg(view);
                 view.setChannelImage(img);
 
             } catch (InterruptedException | ExecutionException e) {
@@ -316,8 +314,7 @@ public class Controller {
                 mouseListenerIsActive = false;
                 view.clearModel();
 
-            }
-            else if (programs.size() > 0 && !mouseListenerIsActive) {
+            } else if (programs.size() > 0 && !mouseListenerIsActive) {
                 initTableListener();
                 mouseListenerIsActive = true;
             }

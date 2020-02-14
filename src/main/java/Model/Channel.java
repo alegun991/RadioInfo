@@ -9,13 +9,11 @@ import java.net.URL;
 /**
  * This class holds all information about a channel
  */
-
-public class Channel {
+class Channel {
 
     private int id;
     private String name;
     private String imageUrl;
-    private String tagLine;
 
     /**
      * Constructor

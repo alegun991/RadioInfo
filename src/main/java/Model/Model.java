@@ -153,6 +153,7 @@ public class Model {
         if (errorMSg != null){
             JOptionPane.showMessageDialog(component, errorMSg, "Alert",
                     JOptionPane.WARNING_MESSAGE, null);
+            errorMSg = null;
         }
     }
 }

@@ -13,7 +13,7 @@ public class ProgramTable extends AbstractTableModel {
     //list of table data
     private List<TableData> tableData;
 
-    private String[] columnNames = {"Channel",
+    private String[] columnNames = {"Program",
             "Start time",
             "End time",
             "Status"};

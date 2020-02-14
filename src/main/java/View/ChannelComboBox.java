@@ -3,6 +3,7 @@ package View;
 import javax.swing.*;
 import java.awt.event.ItemListener;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This class is responsible for filling a JComboBox with Channel names.
@@ -10,7 +11,7 @@ import java.util.ArrayList;
 
 public class ChannelComboBox extends JComboBox<String> {
 
-    ArrayList<String> channels;
+    List<String> channels;
     private static final String PLACE_HOLDER = "Choose a radio channel";
 
     /**
@@ -18,7 +19,7 @@ public class ChannelComboBox extends JComboBox<String> {
      * @param channels list of channel names
      */
 
-    public ChannelComboBox(ArrayList<String> channels){
+    public ChannelComboBox(List<String> channels){
         this.channels = channels;
         addItem(PLACE_HOLDER);
         addChannels();
