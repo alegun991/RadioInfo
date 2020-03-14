@@ -11,18 +11,15 @@ import java.util.List;
 
 public class ChannelComboBox extends JComboBox<String> {
 
-    List<String> channels;
     private static final String PLACE_HOLDER = "Choose a radio channel";
 
     /**
      * Constructor, initialises the combobox.
-     * @param channels list of channel names
      */
 
-    public ChannelComboBox(List<String> channels){
-        this.channels = channels;
+    public ChannelComboBox(){
         addItem(PLACE_HOLDER);
-        addChannels();
+
     }
 
     /**
@@ -44,7 +41,7 @@ public class ChannelComboBox extends JComboBox<String> {
      * Goes through the list of channel names and adds them to the
      * JComboBox
      */
-    public void addChannels(){
+    public void addChannels(List<String> channels){
 
         for (String s : channels) {
 

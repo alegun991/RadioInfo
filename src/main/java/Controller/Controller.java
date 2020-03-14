@@ -14,7 +14,6 @@ import java.awt.event.MouseEvent;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ExecutionException;
@@ -31,13 +30,12 @@ public class Controller {
 
     private final Model model;
     private volatile MainWindow view;
-    private ChannelComboBox comboBox;
+    private final ChannelComboBox comboBox;
     private volatile ArrayList<Program> programs;
     private String currentChannel;
     private Timer timer;
     private String lastUpdated;
     private AtomicBoolean isUpdating = new AtomicBoolean(false);
-    private boolean mouseListenerIsActive = false;
 
     /**
      * Constructor
@@ -46,21 +44,26 @@ public class Controller {
      */
     public Controller() {
         model = new Model();
+        comboBox = new ChannelComboBox();
         initView();
         new ChannelWorker().execute();
         timer = new Timer();
     }
 
     /**
+     * d
      * Initiates the GUI on EDT.
      */
-    public void initView() {
+    private void initView() {
 
         SwingUtilities.invokeLater(() -> {
             view = new MainWindow();
             view.setMinimumSize(new Dimension(1080, 720));
             view.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             view.setVisible(true);
+            view.aboutListener(actionEvent -> showAboutDialog());
+            view.helpListener(actionEvent -> showHelpDialog());
+            view.addComboBox(comboBox);
 
         });
 
@@ -70,15 +73,9 @@ public class Controller {
      * Initialises the listeners for swing components in the view.
      */
     private void initListeners() {
-        view.aboutListener(actionEvent -> showAboutDialog());
-        view.helpListener(actionEvent -> showHelpDialog());
         comboBox.comboBoxListener(this::showProgramData);
-
-    }
-
-    private void initTableListener() {
         view.refreshListener(actionEvent -> scheduledUpdate());
-        addProgramListener();
+
     }
 
     /**
@@ -112,7 +109,6 @@ public class Controller {
             scheduledUpdate();
 
         }
-
     }
 
     /**
@@ -127,9 +123,9 @@ public class Controller {
         view.addTableListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
+                var rows = view.getTableModel().getRowCount();
 
-                if (mouseListenerIsActive && !isUpdating.get()) {
-
+                if (rows > 0) {
                     int rowId = view.getTableModel().getRowId(
                             view.getTable().getSelectedRow());
 
@@ -140,7 +136,7 @@ public class Controller {
                         LocalDateTime ldt = p.getStartTime();
                         String formatTime = timeFormatter(ldt);
 
-                        if (p.getId() == rowId && formatTime.equals(startTime)) {
+                        if (p.getId() == rowId && formatTime.equals(startTime)){
 
                             programImgRetriever(p);
 
@@ -149,23 +145,33 @@ public class Controller {
                 }
             }
         });
-
     }
 
+    /**
+     * Used to retrieve an image for a specific program
+     *
+     * @param p program
+     */
     private void programImgRetriever(Program p) {
 
-        SwingWorker<Void, ImageIcon> sw = new SwingWorker<>() {
+        SwingWorker<ImageIcon, Void> sw = new SwingWorker<>() {
             @Override
-            protected Void doInBackground() {
+            protected ImageIcon doInBackground() {
 
-                publish(p.getImage());
-
-                return null;
+                return p.getImage();
             }
 
             @Override
-            protected void process(List<ImageIcon> chunks) {
-                view.setOptionDialog(p.getDescription(), chunks.get(0));
+            protected void done() {
+
+                try {
+                    var tmp = get();
+                    view.setOptionDialog(p.getDescription(), tmp);
+                    isUpdating.set(false);
+
+                } catch (InterruptedException | ExecutionException e) {
+                    e.printStackTrace();
+                }
             }
         };
         sw.execute();
@@ -179,8 +185,12 @@ public class Controller {
      */
     public void scheduledUpdate() {
 
-        if (!isUpdating.get()) {
-            updateData();
+        if (isUpdating.compareAndSet(false, true)) {
+
+            if (getCurrentChannel() != null) {
+
+                updateData();
+            }
         }
 
         timer.cancel();
@@ -190,108 +200,30 @@ public class Controller {
         timer.scheduleAtFixedRate(new UpdateTask(), 3600000,
                 3600000);
 
-
     }
 
     /**
      * Executes worker for updating program tableau
      */
     public void updateData() {
-        isUpdating.set(true);
+
         ProgramWorker pw = new ProgramWorker();
         pw.execute();
+
     }
 
     /**
      * Nested class, retrieves all radio channels on background thread, once
      * done, fills a combo box with channel names
      */
-    class ChannelWorker extends SwingWorker<Void, String> {
+    class ChannelWorker extends SwingWorker<ArrayList<String>, String> {
 
         @Override
-        protected Void doInBackground() {
+        protected ArrayList<String> doInBackground() {
+
             model.loadChannels();
+            return model.getChannelNames();
 
-            var tmp = model.getChannelNames();
-
-            for (String s : tmp) {
-                publish(s);
-            }
-
-            return null;
-
-        }
-
-        @Override
-        protected void process(List<String> chunks) {
-            model.displayErrorMsg(view);
-            comboBox = new ChannelComboBox(chunks);
-            view.addComboBox(comboBox);
-
-        }
-
-        @Override
-        protected void done() {
-            initListeners();
-
-        }
-    }
-
-    /**
-     * Nested class, fills table with programs based on the currently selected
-     * channel. Retrieves programs
-     */
-    class ProgramWorker extends SwingWorker<ImageIcon, TableData> {
-
-
-        @Override
-        protected ImageIcon doInBackground() {
-
-            programs = new ArrayList<Program>(
-                    model.getPrograms(getCurrentChannel()));
-
-            LocalDateTime ldt = LocalDateTime.now();
-            String status = "";
-
-            for (Program p : programs) {
-
-                var id = p.getId();
-                var title = p.getTitle();
-                var startTime = p.getStartTime();
-                var formatTime1 = timeFormatter(startTime);
-                var endTime = p.getEndTime();
-                var formatTime2 = timeFormatter(endTime);
-
-                if (startTime.isBefore(ldt) && endTime.isAfter(ldt)) {
-
-                    status = "Running";
-                }
-                if (endTime.isBefore(ldt)) {
-
-                    status = "Finished";
-                }
-                if (startTime.isAfter(ldt)) {
-
-                    status = "Upcoming";
-                }
-
-                publish(new TableData(id, title, formatTime1,
-                        formatTime2, status));
-
-            }
-
-            return model.getImageForName(getCurrentChannel());
-        }
-
-        /**
-         * Evoked on EDT. Updates the table model.
-         *
-         * @param chunks list of table data
-         */
-        @Override
-        protected void process(List<TableData> chunks) {
-
-            view.updateTable(chunks);
         }
 
         @Override
@@ -299,24 +231,75 @@ public class Controller {
 
             model.displayErrorMsg(view);
             try {
-                var img = get();
-
-                //shows message dialog if any error occurred
-                view.setChannelImage(img);
+                var tmp = get();
+                comboBox.addChannels(tmp);
+                initListeners();
+                addProgramListener();
 
             } catch (InterruptedException | ExecutionException e) {
                 e.printStackTrace();
             }
+        }
+    }
 
-            //only "activate" mouse listener if any data was received.
-            //If not, "deactivate" listener
-            if (programs.size() == 0 && mouseListenerIsActive) {
-                mouseListenerIsActive = false;
-                view.clearModel();
+    /**
+     * Nested class, fills table with programs based on the currently selected
+     * channel. Retrieves programs
+     */
+    class ProgramWorker extends SwingWorker<ArrayList<Program>, Void> {
 
-            } else if (programs.size() > 0 && !mouseListenerIsActive) {
-                initTableListener();
-                mouseListenerIsActive = true;
+        @Override
+        protected ArrayList<Program> doInBackground() {
+
+            model.loadChannelImage(getCurrentChannel());
+            return model.getPrograms(getCurrentChannel());
+        }
+
+
+        @Override
+        protected void done() {
+            //shows message dialog if any error occurred
+            model.displayErrorMsg(view);
+
+            var tableauItems = new ArrayList<TableData>();
+
+            try {
+                programs = get();
+
+                LocalDateTime ldt = LocalDateTime.now();
+                String status = "";
+
+                for (Program p : programs) {
+
+                    var id = p.getId();
+                    var title = p.getTitle();
+                    var startTime = p.getStartTime();
+                    var formatTime1 = timeFormatter(startTime);
+                    var endTime = p.getEndTime();
+                    var formatTime2 = timeFormatter(endTime);
+
+                    if (startTime.isBefore(ldt) && endTime.isAfter(ldt)) {
+
+                        status = "Running";
+                    }
+                    if (endTime.isBefore(ldt)) {
+
+                        status = "Finished";
+                    }
+                    if (startTime.isAfter(ldt)) {
+
+                        status = "Upcoming";
+                    }
+
+                    tableauItems.add(new TableData(id, title, formatTime1,
+                            formatTime2, status));
+
+                }
+                view.updateTable(tableauItems);
+                view.setChannelImage(model.getChannelImg());
+
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
             }
 
             lastUpdate(LocalDateTime.now());
@@ -324,6 +307,7 @@ public class Controller {
             isUpdating.set(false);
 
         }
+
     }
 
     /**
@@ -335,10 +319,8 @@ public class Controller {
         @Override
         public void run() {
 
-            if (!isUpdating.get()) {
-
+            if (isUpdating.compareAndSet(false, true)) {
                 updateData();
-
             }
         }
     }
@@ -382,5 +364,6 @@ public class Controller {
 
         return currentChannel;
     }
+
 }
 

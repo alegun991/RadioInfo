@@ -16,6 +16,7 @@ public class Model {
 
     private ArrayList<Channel> channels;
     private XmlParser xmlParser;
+    private ImageIcon channelImg;
     private String errorMSg = null;
 
     /**
@@ -49,18 +50,21 @@ public class Model {
      * @param channelName the name of a specific channel
      * @return image for that channel
      */
-    public ImageIcon getImageForName(String channelName) {
+    public void loadChannelImage(String channelName) {
 
-        ImageIcon image;
         for (Channel c : channels) {
 
             if (c.getName().equals(channelName)) {
 
-                image = c.getImage();
-                return image;
+                channelImg = c.getImage();
             }
         }
-        return null;
+
+    }
+
+    public ImageIcon getChannelImg(){
+
+        return channelImg;
     }
 
     /**

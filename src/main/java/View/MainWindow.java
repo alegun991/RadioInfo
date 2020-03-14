@@ -282,7 +282,6 @@ public class MainWindow extends JFrame {
         }
 
         else{
-
             noImageFound = new JTextArea();
             noImageFound.append("No image found for chosen channel");
             imagePanel.add(noImageFound, BorderLayout.CENTER);
